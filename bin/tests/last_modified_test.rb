@@ -65,13 +65,28 @@ class LastModifiedTest < Minitest::Test
     LastModified.check('HEAD^', 'HEAD')
   end
 
-  def test_installed_hook_runs_trusted_helper_not_checkout_copy
+  def add_hook_tooling
     source = File.expand_path('../..', __dir__)
     write('bin/last-modified', File.read(SCRIPT))
     write('bin/install-hooks', File.read(File.join(source, 'bin/install-hooks')))
     write('.githooks/pre-commit', File.read(File.join(source, '.githooks/pre-commit')))
     git('add', '.')
     git('commit', '-qm', 'Add timestamp tooling')
+  end
+
+  def test_installer_rejects_hooks_path_inside_worktree
+    add_hook_tooling
+    original_hook = File.read('.githooks/pre-commit')
+    git('config', 'core.hooksPath', '.githooks')
+    _output, error, status = Open3.capture3('ruby', 'bin/install-hooks')
+    refute status.success?
+    assert_includes error, 'inside the worktree'
+    assert_equal original_hook, File.read('.githooks/pre-commit')
+    refute File.exist?('.githooks/last-modified')
+  end
+
+  def test_installed_hook_runs_trusted_helper_not_checkout_copy
+    add_hook_tooling
     output, error, status = Open3.capture3('ruby', 'bin/install-hooks')
     assert status.success?, "#{output}\n#{error}"
 

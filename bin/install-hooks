@@ -16,6 +16,28 @@ LEGACY_HOOKS = ["#!/bin/sh\nset -eu\nexec ruby bin/last-modified --staged\n"].fr
 
 hook_path = git_path('hooks/pre-commit')
 helper_path = git_path('hooks/last-modified')
+
+# A hooks directory inside the worktree (for example core.hooksPath=.githooks)
+# holds files a checked-out branch can replace, defeating the trusted copy.
+def resolved(path)
+  path = File.expand_path(path)
+  parent = path
+  parent = File.dirname(parent) until File.exist?(parent)
+  File.expand_path(path.delete_prefix(parent).delete_prefix('/'), File.realpath(parent))
+end
+
+def within?(path, dir)
+  path == dir || path.start_with?(dir + File::SEPARATOR)
+end
+
+common_dir, status = Open3.capture2('git', 'rev-parse', '--git-common-dir')
+abort 'Could not locate the Git directory.' unless status.success?
+hooks_dir = resolved(File.dirname(hook_path))
+if within?(hooks_dir, File.realpath(Dir.pwd)) && !within?(hooks_dir, resolved(common_dir.strip))
+  abort "Git hooks resolve to #{hooks_dir}, inside the worktree, where a checked-out " \
+        'branch can replace them. Unset core.hooksPath or point it outside the ' \
+        'checkout, then rerun bin/install-hooks.'
+end
 content = File.read('.githooks/pre-commit')
 if File.exist?(hook_path)
   existing = File.read(hook_path)

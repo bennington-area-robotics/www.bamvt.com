@@ -107,7 +107,9 @@ Run `bin/install-hooks` once per checkout. It copies `bin/last-modified` into th
 Git hooks directory, and the pre-commit hook runs that copy with `--staged`, so
 checking out someone else's branch cannot change the code that runs when you
 commit. The hook warns when the checkout's `bin/last-modified` differs from the
-installed copy; review the change, then rerun `bin/install-hooks`. The helper stamps affected pages in the index and updates
+installed copy; review the change, then rerun `bin/install-hooks`. The installer refuses a
+`core.hooksPath` inside the checkout (such as `.githooks`), since a branch could
+replace hooks stored there. The helper stamps affected pages in the index and updates
 only the timestamp in their working copies, so partially staged edits stay partially
 staged. Stage changes first and run `git commit` without file/path arguments; the
 hook rejects path-limited commits. The installer preserves an existing hook and
