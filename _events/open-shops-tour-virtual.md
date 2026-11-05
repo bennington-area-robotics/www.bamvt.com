@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T21:36:16-04:00
 description: "Archived April 2020 virtual tour of makers’ home workshops, featuring favorite tools, current projects, and opportunities to share ideas."
 layout: "event"
 title: "Open Shops Tour - Virtual"

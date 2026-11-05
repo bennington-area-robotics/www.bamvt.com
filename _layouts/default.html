@@ -231,6 +231,7 @@
     .archive-list a { font-size: 1.1rem; font-weight: 600; }
     .event-notice { margin-top: 0.25rem; }
     .eyebrow, .post-date { font-size: 0.9rem; color: var(--muted); }
+    .page-updated { margin: 2rem 0 0; color: var(--muted); font-size: 0.85rem; }
     .event-details { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem 1.5rem; padding: 1rem 0; border-block: 1px solid var(--border); }
     .event-details dt { font-weight: 700; }
     .event-details dd { margin: 0; overflow-wrap: anywhere; }
@@ -276,6 +277,9 @@
     <div class="site-content">
       <main class="container" id="main-content" tabindex="-1">
         {{ content }}
+        {% if page.last_modified_at %}
+        <p class="page-updated">Last updated <time datetime="{{ page.last_modified_at | date_to_xmlschema }}">{{ page.last_modified_at | date: "%B %-d, %Y" }}</time></p>
+        {% endif %}
       </main>
       <footer class="site-footer">
         <div class="container">

@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-29T19:36:30-04:00
 description: "Explore youth robotics in Bennington and Manchester, Vermont, plus community making, past workshops, and ways to support Bennington Area Makers."
 layout: "default"
 title: "Home"

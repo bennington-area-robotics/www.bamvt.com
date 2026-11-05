@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T21:36:16-04:00
 description: "Archived May 2020 workshop announcement on bicycle selection, fit, and basic safety checks with Bruce Lierman of The Cycling Academy."
 layout: "event"
 title: "BAM Open Shops Tour - Bicycle Tune Up"

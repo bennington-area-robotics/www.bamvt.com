@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+require 'fileutils'
+require 'open3'
+root, status = Open3.capture2('git', 'rev-parse', '--show-toplevel')
+abort 'Run this from the site repository.' unless status.success?
+Dir.chdir(root.strip)
+hook_path, status = Open3.capture2('git', 'rev-parse', '--git-path', 'hooks/pre-commit')
+abort 'Could not locate Git hooks.' unless status.success?
+hook_path = hook_path.strip
+content = File.read('.githooks/pre-commit')
+if File.exist?(hook_path) && File.read(hook_path) != content
+  abort "Existing pre-commit hook at #{hook_path}; add `ruby bin/last-modified --staged` to it instead."
+end
+FileUtils.mkdir_p(File.dirname(hook_path))
+File.write(hook_path, content)
+File.chmod(0o755, hook_path)
+puts "Installed timestamp hook: #{hook_path}"

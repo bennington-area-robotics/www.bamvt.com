@@ -1,0 +1,286 @@
+#!/usr/bin/env ruby
+# Maintain page timestamps without staging unrelated working-tree changes.
+#
+# Adapted from robotics.bamvt.com's bin/last-modified. The staging, check, and
+# UTF-8 handling are the same; the page, include, and data rules below are
+# specific to this site, and front-matter metadata changes do not count as
+# content changes.
+require 'date'
+require 'json'
+require 'open3'
+require 'set'
+require 'time'
+require 'yaml'
+
+module LastModified
+  FIELD = /^last_modified_at:[^\r\n]*\r?\n/
+  FRONT = /\A---\r?\n(.*?)^---[ \t]*\r?\n/m
+  # Pages using these layouts display and submit last_modified_at.
+  LAYOUTS = %w[default event article].freeze
+  # Collection directories whose documents are pages.
+  COLLECTIONS = %w[_posts/ _events/].freeze
+  # These includes provide presentation or embeds, not shared editorial content.
+  PRESENTATION = %w[organization-schema.html video.html].freeze
+  # Search and routing metadata; changing only these keys is not a content change.
+  METADATA = %w[last_modified_at description seo_title sitemap nav_section permalink
+                wordpress_id redirect_from].freeze
+  # Data entries that a layout renders, keyed by layout, data file, and the
+  # front-matter field holding the page's entry IDs.
+  LAYOUT_DATA = { 'event' => { 'event_venues' => 'venue_id', 'event_organizers' => 'organizer_ids' } }.freeze
+
+  def self.git(*args, input: nil)
+    # Site content is UTF-8 even when an editor launches Git with an ASCII locale.
+    output, error, status = Open3.capture3('git', *args, stdin_data: input, binmode: true)
+    output.force_encoding(Encoding::UTF_8)
+    error.force_encoding(Encoding::UTF_8)
+    raise "git #{args.first}: #{error.strip}" unless status.success?
+    output
+  end
+
+  def self.front(text)
+    match = FRONT.match(text.to_s)
+    return {} unless match
+    YAML.safe_load(match[1], permitted_classes: [Date, Time], aliases: false) || {}
+  end
+
+  def self.without_stamp(text)
+    return text unless text && (match = FRONT.match(text))
+    text.sub(match[0], match[0].gsub(FIELD, ''))
+  end
+
+  # The parts of a file that readers see: front matter other than metadata, and
+  # the body. Files without front matter (includes, data) compare as whole text.
+  def self.content(text)
+    return text unless text && (match = FRONT.match(text))
+    [front(text).reject { |key, _| METADATA.include?(key) }, text[match[0].length..]]
+  rescue Psych::Exception
+    text
+  end
+
+  # The data entries a page's layout renders for it; `read` returns a file's text.
+  def self.layout_entries(text, read)
+    meta = front(text)
+    LAYOUT_DATA.fetch(meta['layout'], {}).map do |name, key|
+      source = read.call("_data/#{name}.json")
+      begin
+        data = JSON.parse(source || '{}')
+      rescue JSON::ParserError
+        next source # Compare unparseable data as whole text.
+      end
+      Array(meta[key]).map { |id| data[id.to_s] }
+    end
+  end
+
+  def self.stamp(text, value)
+    raise 'Missing YAML front matter' unless FRONT.match?(text)
+    clean = without_stamp(text)
+    newline = clean.start_with?("---\r\n") ? "\r\n" : "\n"
+    clean.sub(/\A---\r?\n/, "---#{newline}last_modified_at: #{value}#{newline}")
+  end
+
+  def self.timestamp(text)
+    value = front(text)['last_modified_at']
+    return value if value.is_a?(Time)
+    Time.iso8601(value.to_s) if value.to_s.match?(/T.*(?:Z|[+-]\d\d:\d\d)\z/)
+  rescue ArgumentError
+    nil
+  end
+
+  class Snapshot
+    attr_reader :paths
+
+    def initialize(ref)
+      @ref = ref
+      @paths = if ref == 'working'
+                 LastModified.git('ls-files', '--cached', '--others', '--exclude-standard', '-z').split("\0").uniq
+               elsif ref == 'index'
+                 LastModified.git('ls-files', '-z').split("\0").uniq
+               else
+                 LastModified.git('ls-tree', '-r', '--name-only', '-z', ref).split("\0")
+               end
+      @texts = {}
+      @dependencies = {}
+    end
+
+    def text(path)
+      return nil unless paths.include?(path)
+      return @texts[path] if @texts.key?(path)
+      @texts[path] = if @ref == 'working'
+                       File.file?(path) ? File.read(path, encoding: 'UTF-8') : nil
+                     else
+                       LastModified.git('show', "#{@ref == 'index' ? '' : @ref}:#{path}")
+                     end
+    end
+
+    def meta(path)
+      LastModified.front(text(path))
+    end
+
+    def pages
+      @pages ||= paths.select do |path|
+        next false unless path.match?(/\.(md|markdown|html)\z/)
+        next false if path.start_with?('.', 'resources/')
+        next false if path.start_with?('_') && !path.start_with?(*COLLECTIONS)
+        LAYOUTS.include?(meta(path)['layout']) && !meta(path)['redirect_to']
+      end
+    end
+
+    def layout_entries(page)
+      LastModified.layout_entries(text(page), ->(path) { text(path) })
+    end
+
+    def data_files(name)
+      paths.select { |p| p.start_with?("_data/#{name}/") || p.match?(%r{\A_data/#{Regexp.escape(name)}\.(json|ya?ml|csv)\z}) }
+    end
+
+    def dependencies(page)
+      @dependencies[page] ||= begin
+        found = Set[page]
+        pending = [page]
+        until pending.empty?
+          path = pending.shift
+          source = text(path).to_s
+          includes = source.scan(/{%-?\s*include\s+([\w.\/-]+)/).flatten
+                           .reject { |name| PRESENTATION.include?(name) }
+                           .map { |name| "_includes/#{name}" }
+          data = source.scan(/site\.data\.([\w-]+)/).flatten.flat_map { |name| data_files(name) }
+          # Listings depend on their source pages, including newly added/deleted documents.
+          listings = []
+          listings.concat(pages.select { |p| p.start_with?('_posts/') }) if source.include?('site.posts')
+          listings.concat(pages.select { |p| p.start_with?('_events/') }) if source.include?('site.events')
+          (includes + data + listings).each do |dependency|
+            next if found.include?(dependency)
+            found.add(dependency)
+            pending << dependency
+          end
+        end
+        found
+      end
+    end
+  end
+
+  def self.affected(before, after)
+    changed = (before.paths | after.paths).select do |path|
+      # Only content sources can affect these timestamps. Avoid reading binary assets.
+      path.match?(/\.(md|markdown|html|json|ya?ml|csv)\z/) &&
+        content(before.text(path)) != content(after.text(path))
+    end.to_set
+    after.pages.select do |page|
+      dependencies = after.dependencies(page)
+      dependencies |= before.dependencies(page) if before.pages.include?(page)
+      !(dependencies & changed).empty? || before.layout_entries(page) != after.layout_entries(page)
+    end
+  end
+
+  def self.update_index(base = 'HEAD')
+    # Path-limited commits use a disposable index. Updating it would leave reverse
+    # timestamp changes staged in the real index after Git finishes the commit.
+    if File.basename(ENV.fetch('GIT_INDEX_FILE', '')).start_with?('next-index-')
+      raise 'Stage the desired files, then run git commit without file/path arguments so dependent timestamps stay in sync.'
+    end
+    raise 'Resolve merge conflicts before updating timestamps' unless git('ls-files', '-u').empty?
+    before = Snapshot.new(base)
+    after = Snapshot.new('index')
+    pages = affected(before, after)
+    now = Time.now.utc
+    # Preflight every working file before changing the index or any working file.
+    updates = pages.map do |page|
+      raise "#{page}: restore the working file before committing" unless File.file?(page) && !File.symlink?(page)
+      working = File.read(page, encoding: 'UTF-8')
+      raise "#{page}: keep valid front matter in the working file" unless LAYOUTS.include?(front(working)['layout'])
+      old = timestamp(before.text(page))
+      value = [now, old ? old + 1 : now].max.iso8601
+      [page, stamp(after.text(page), value), stamp(working, value)]
+    end
+    entries = git('ls-files', '--stage', '-z').split("\0").to_h do |entry|
+      attributes, path = entry.split("\t", 2)
+      [path, attributes.split.first]
+    end
+    index_info = updates.map do |page, staged, _working|
+      blob = git('hash-object', '-w', '--stdin', input: staged).strip
+      "#{entries.fetch(page)} #{blob}\t#{page}\0"
+    end.join
+    git('update-index', '-z', '--index-info', input: index_info) unless updates.empty?
+    updates.each do |page, _staged, working|
+      File.write(page, working, encoding: 'UTF-8')
+      puts "Updated last_modified_at: #{page}"
+    end
+  end
+
+  def self.show(ref, path)
+    git('show', "#{ref}:#{path}")
+  rescue RuntimeError
+    nil
+  end
+
+  # The newest commit that changed the content of the page or one of its sources.
+  # Commits that changed only metadata, such as descriptions, are skipped.
+  def self.content_date(page, sources)
+    data = LAYOUT_DATA.fetch(front(File.read(page, encoding: 'UTF-8'))['layout'], {}).keys.map { |name| "_data/#{name}.json" }
+    git('log', '--format=%H %P%x09%cI', 'HEAD', '--', *sources, *data).each_line do |line|
+      commits, date = line.chomp.split("\t")
+      commit, parent = commits.split
+      read = ->(ref) { ->(path) { ref && show(ref, path) } }
+      changed = sources.any? do |path|
+        content(show(commit, path)) != content(parent && show(parent, path))
+      end
+      changed ||= layout_entries(show(commit, page), read.call(commit)) !=
+                  layout_entries(parent && show(parent, page), read.call(parent))
+      return date if changed
+    end
+    nil
+  end
+
+  def self.backfill
+    snapshot = Snapshot.new('working')
+    snapshot.pages.each do |page|
+      next if timestamp(snapshot.text(page))
+      value = content_date(page, snapshot.dependencies(page).to_a) || Time.now.utc.iso8601
+      File.write(page, stamp(snapshot.text(page), value), encoding: 'UTF-8')
+      puts "Initialized last_modified_at: #{page} (#{value})"
+    end
+  end
+
+  def self.check(base, head)
+    before = Snapshot.new(base)
+    after = Snapshot.new(head)
+    changed = affected(before, after).to_set
+    failures = after.pages.filter_map do |page|
+      current = timestamp(after.text(page))
+      previous = timestamp(before.text(page))
+      if !current
+        "#{page}: missing or invalid last_modified_at (use ISO 8601 with a timezone)"
+      elsif changed.include?(page) && previous && current <= previous
+        "#{page}: content changed without advancing last_modified_at"
+      end
+    end
+    raise failures.join("\n") unless failures.empty?
+    puts "Page timestamps OK (#{changed.size} affected pages)."
+  end
+
+  def self.main(args)
+    Dir.chdir(git('rev-parse', '--show-toplevel').strip)
+    case args.shift
+    when '--staged'
+      raise 'Usage: bin/last-modified --staged [BASE]' if args.size > 1
+      update_index(args.first || 'HEAD')
+    when '--backfill'
+      raise 'Usage: bin/last-modified --backfill' unless args.empty?
+      backfill
+    when '--check'
+      raise 'Usage: bin/last-modified --check BASE [HEAD]' unless (1..2).cover?(args.size)
+      check(args[0], args[1] || 'HEAD')
+    else
+      raise 'Usage: bin/last-modified --staged [BASE] | --backfill | --check BASE [HEAD]'
+    end
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  begin
+    LastModified.main(ARGV)
+  rescue StandardError => e
+    warn "last-modified: #{e.message}"
+    exit 1
+  end
+end

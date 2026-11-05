@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T20:11:44-04:00
 description: "Learn about BAM’s mission, makerspace beginnings, community partnerships, board of directors, and founding organizers in Bennington, Vermont."
 layout: "default"
 title: "About"

@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T21:36:16-04:00
 description: "Explore BAM’s robotics program and earlier makerspace activities, from coding and electronics to sewing, woodworking, and 3D printing."
 layout: "default"
 title: "Activities"
