@@ -9,7 +9,7 @@ This is the public Jekyll site for Bennington Area Makers
 Its active program is youth robotics; the robotics site itself is the sibling
 `../robotics.bamvt.com` repository. Most of this site is the preserved archive of
 BAM's earlier WordPress makerspace site. GitHub Pages builds and deploys it from
-the root of `master`. See **Hosting and deployment** in `README.md` for DNS,
+the root of `master` (robotics.bamvt.com uses `main`). See **Hosting and deployment** in `README.md` for DNS,
 redirects, and the asset host.
 
 ## Repository Boundary
@@ -21,7 +21,8 @@ recovery notes, and other private working material belong in the private
 `resources/` holds the WordPress SQL and XML exports, media backups, migration
 audits, and state filings. It is ignored by Git and excluded from the build. Read
 it as source material when needed, but never commit it or copy its contents into
-pages or `_data/`.
+pages or `_data/`. Jekyll loads every file under `_data/` regardless of Git
+ignore rules, so never place private data there, even in an ignored subdirectory.
 
 ## Resuming Work
 
@@ -31,8 +32,11 @@ pages or `_data/`.
 
 ## Build and Preview
 
-- Preview with `bundle exec jekyll serve --port 4002`. The robotics site uses
-  port 4001; reuse an existing preview of this repository before starting another.
+- Preview with `bundle exec jekyll serve --port 4002`. Port **4000 does not work
+  in the maintainer's setup**, so never use bare `jekyll serve`. The robotics site
+  uses 4001 and live reload on 35729; if you add `--livereload` here, also pass a
+  different `--livereload-port` (for example 35730). Reuse an existing preview of
+  this repository before starting another.
 - Run `bundle exec jekyll build` to verify a change without a server. A clean
   build is the minimum check for content, layout, or Liquid changes.
 - Run `ruby bin/tests/last_modified_test.rb` after changing `bin/last-modified`.
@@ -61,6 +65,14 @@ pages or `_data/`.
 
 ## Conventions
 
+- New pages need `layout: default`, `title`, `description`, and
+  `last_modified_at` front matter. Add a main-menu entry by editing `nav_items` in
+  `_layouts/default.html`. Start the body with one `# Title`, then `##` sections
+  and `###` subsections; the `event` and `article` layouts supply the `h1`, so
+  their bodies start at `##`.
+- The mailing address appears in the footer of `_layouts/default.html`,
+  `contact.md`, `donate.md`, `index.md`, and `_includes/organization-schema.html`.
+  The EIN is in `donate.md`. Update every copy when these change.
 - Every content page has a unique `description` of at most 155 characters. See
   **Search metadata** in `README.md`.
 - Pages using the `default`, `event`, or `article` layout carry a
@@ -88,6 +100,26 @@ pages or `_data/`.
   `exclude` in `_config.yml`, or Jekyll publishes them.
 - Keep this file and `README.md` aligned with changes to structure, tooling, and
   conventions. Keep unrelated edits out of a task.
+
+## Editorial Guidance
+
+BAM and Bennington Area Robotics share an institutional voice. Follow the
+**Editorial Style Guide** in `../robotics.bamvt.com/README.md`. In particular:
+
+- Write clearly and warmly without being intimate, parental, or presumptuous.
+- State expectations concretely; avoid slogans, scolding, and inferred motives.
+- Treat members, students, families, volunteers, and donors as capable partners.
+- Keep fundraising copy confident and active, but never obscure costs,
+  restrictions, or how funds will be used.
+
+## Sister Repository
+
+`../robotics.bamvt.com` shares this site's sidebar layout, timestamp tooling,
+sitemap approach, and IndexNow script, and its `AGENTS.md` and `README.md`
+document the same conventions in more depth. Consult it for precedent, but check
+this repository's README where the two differ: the sites' layouts, navigation
+(hard-coded here, `_data/navigation.yml` there), and `bin/last-modified` rules
+are not identical. Robotics content changes belong in that repository.
 
 ## Key Files
 
