@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+# Submit published pages to IndexNow, which shares submissions with Bing,
+# Yandex, Seznam, Naver, and Yep. Google does not use IndexNow; use URL
+# Inspection > Request Indexing in Search Console for Google.
+#
+#   bin/indexnow /events/ /blog/some-post/   # paths or full URLs on this site
+#   bin/indexnow --since 2026-11-01          # sitemap pages with lastmod >= date
+#   bin/indexnow --all                       # every URL in the live sitemap
+#   bin/indexnow --dry-run --since 2026-11-01
+#
+# Run it after GitHub Pages has deployed the change. The key is the single
+# <key>.txt file in the repository root; Jekyll publishes it at
+# https://<CNAME>/<key>.txt. The host comes from CNAME, so the same script
+# works unchanged in robotics.bamvt.com and www.bamvt.com.
+require 'json'
+require 'net/http'
+require 'optparse'
+require 'time'
+require 'uri'
+
+ENDPOINT = URI('https://api.indexnow.org/IndexNow')
+RESPONSES = {
+  200 => 'OK: URLs submitted.',
+  202 => 'Accepted: URLs received; key validation is pending.',
+  400 => 'Bad request: invalid format.',
+  403 => 'Forbidden: the key file is missing or does not match the key.',
+  422 => 'Unprocessable: a URL is not on this host, or the key does not match the protocol.',
+  429 => 'Too many requests: submit less often.'
+}.freeze
+
+options = { dry_run: false }
+parser = OptionParser.new do |o|
+  o.banner = 'Usage: bin/indexnow [--dry-run] (--since YYYY-MM-DD | --all | PATH_OR_URL...)'
+  o.on('--since DATE', 'Submit sitemap URLs whose lastmod is on or after DATE (UTC)') do |d|
+    options[:since] = Time.parse("#{d} 00:00:00 UTC")
+  end
+  o.on('--all', 'Submit every URL in the live sitemap') { options[:all] = true }
+  o.on('--dry-run', 'List the URLs without submitting them') { options[:dry_run] = true }
+end
+parser.parse!
+
+modes = [options[:since], options[:all], ARGV.any? || nil].compact
+abort parser.banner unless modes.length == 1
+
+root = File.expand_path('..', __dir__)
+host = File.read(File.join(root, 'CNAME')).strip
+
+keys = Dir[File.join(root, '*.txt')].select do |file|
+  name = File.basename(file, '.txt')
+  name.match?(/\A[a-zA-Z0-9-]{8,128}\z/) && File.read(file).strip == name
+end
+abort "Expected one IndexNow key file in #{root}, found #{keys.length}." unless keys.length == 1
+key = File.basename(keys.first, '.txt')
+key_location = "https://#{host}/#{key}.txt"
+
+def fetch(url)
+  response = Net::HTTP.get_response(URI(url))
+  abort "#{url} returned HTTP #{response.code}." unless response.is_a?(Net::HTTPSuccess)
+  response.body
+end
+
+def sitemap_entries(host)
+  fetch("https://#{host}/sitemap.xml").scan(%r{<url>(.*?)</url>}m).map do |(block)|
+    loc = block[%r{<loc>\s*(.*?)\s*</loc>}m, 1]
+    lastmod = block[%r{<lastmod>\s*(.*?)\s*</lastmod>}m, 1]
+    [loc, lastmod && Time.parse(lastmod)]
+  end
+end
+
+urls =
+  if options[:all]
+    sitemap_entries(host).map(&:first)
+  elsif options[:since]
+    entries = sitemap_entries(host)
+    if entries.none?(&:last)
+      abort 'The live sitemap has no lastmod dates; name the URLs or use --all.'
+    end
+    entries.select { |_, lastmod| lastmod && lastmod >= options[:since] }.map(&:first)
+  else
+    ARGV.map do |arg|
+      url = arg.start_with?('/') ? "https://#{host}#{arg}" : arg
+      abort "#{arg} is not on #{host}." unless URI(url).host == host
+      url
+    end
+  end
+urls = urls.compact.uniq
+abort 'No URLs to submit.' if urls.empty?
+
+puts urls
+puts "#{urls.length} URL(s) for #{host}"
+exit if options[:dry_run]
+
+unless fetch(key_location).strip == key
+  abort "#{key_location} does not contain the key; has the key file been deployed?"
+end
+
+request = Net::HTTP::Post.new(ENDPOINT, 'Content-Type' => 'application/json; charset=utf-8')
+request.body = JSON.generate(host: host, key: key, keyLocation: key_location, urlList: urls)
+response = Net::HTTP.start(ENDPOINT.host, ENDPOINT.port, use_ssl: true) { |http| http.request(request) }
+code = response.code.to_i
+puts "HTTP #{code} #{RESPONSES.fetch(code, response.message)}"
+exit(code == 200 || code == 202 ? 0 : 1)

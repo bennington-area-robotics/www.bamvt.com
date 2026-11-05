@@ -94,3 +94,26 @@ The local `sitemap.xml` overrides jekyll-sitemap's default template. It emits
 change; absent that evidence, it omits the date. Do not fall back to Jekyll's
 collection `date`, file modification times, or build time. Static downloads have
 no lastmod. Existing sitemap exclusions remain in force.
+
+## IndexNow
+
+`bin/indexnow` submits published pages to IndexNow, which shares submissions with
+Bing, Yandex, Seznam, Naver, and Yep. Google does not use IndexNow; request
+indexing for important pages through URL Inspection in Search Console instead.
+Run the script after GitHub Pages has deployed a change:
+
+```bash
+bin/indexnow --dry-run --since 2026-11-01  # list sitemap pages changed since a date
+bin/indexnow --since 2026-11-01            # submit them
+bin/indexnow /events/ /blog/some-post/     # submit specific paths or URLs
+bin/indexnow --all                         # submit every sitemap URL
+```
+
+The key is the single `<key>.txt` file in the repository root, published
+unchanged at the site root; the script reads it and takes the host from `CNAME`.
+This site's key differs from robotics.bamvt.com's. `--since` works only
+for pages whose sitemap entry has a `lastmod`; otherwise name the URLs or use
+`--all`.
+Submit only changed pages; repeated submissions of unchanged URLs can
+be throttled. The same script is kept in `robotics.bamvt.com` and
+`www.bamvt.com`; keep the copies identical.
