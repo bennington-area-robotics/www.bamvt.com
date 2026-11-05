@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T14:26:10-04:00
 description: "Read BAM’s original makerspace homepage, with its early mission, 2019 participation figures, planned activities, and ways the community contributed."
 layout: "default"
 title: "The original makerspace homepage"

@@ -95,6 +95,48 @@ change; absent that evidence, it omits the date. Do not fall back to Jekyll's
 collection `date`, file modification times, or build time. Static downloads have
 no lastmod. Existing sitemap exclusions remain in force.
 
+## Page update dates
+
+Pages using the `default`, `event`, or `article` layout carry a `last_modified_at`
+ISO 8601 timestamp with a timezone. The layout shows it as "Last updated" below
+the content, and the sitemap uses it for `lastmod`. Archived articles and events
+keep their original dates; `last_modified_at` records when this site's copy last
+changed.
+
+Run `bin/install-hooks` once per checkout. It copies `bin/last-modified` into the
+Git hooks directory, and the pre-commit hook runs that copy with `--staged`, so
+checking out someone else's branch cannot change the code that runs when you
+commit. The hook warns when the checkout's `bin/last-modified` differs from the
+installed copy; review the change, then rerun `bin/install-hooks`. The installer refuses a
+`core.hooksPath` inside the checkout (such as `.githooks`), since a branch could
+replace hooks stored there. The helper stamps affected pages in the index and updates
+only the timestamp in their working copies, so partially staged edits stay partially
+staged. Stage changes first and run `git commit` without file/path arguments; the
+hook rejects path-limited commits. The installer preserves an existing hook and
+explains how to integrate with it.
+
+A content change is a change to the body or to front matter other than search and
+routing metadata (`description`, `seo_title`, `sitemap`, `nav_section`,
+`permalink`, `wordpress_id`, and `redirect_from`). Editing only those keys does not
+advance the date. Changes to included content and the `site.data` files it reads
+update the pages that include it; `archive-list.html` makes the blog and event
+indexes depend on `_data/legacy_content.json`. Event pages depend on their own
+entries in `_data/event_venues.json` and `_data/event_organizers.json`, not on
+unrelated entries. Layouts, `organization-schema.html`, and `video.html` do not
+advance dates.
+
+`bin/last-modified --backfill` initializes missing timestamps from the latest
+commit that changed a page's content or sources, skipping metadata-only commits.
+The initial dates were set this way. New pages without history get the current time.
+
+The **Page timestamps** GitHub workflow runs the tests and flags missing timestamps
+and changed pages whose timestamps did not advance. For GitHub web edits, update
+`last_modified_at` by hand; to repair missed updates locally, stage the content and
+run `bin/last-modified --staged BASE`. `bin/last-modified --check BASE HEAD`
+reproduces the check, and `ruby bin/tests/last_modified_test.rb` runs the tests.
+The script is adapted from robotics.bamvt.com's `bin/last-modified`; the
+page, include, data, and metadata rules differ, so the copies are not identical.
+
 ## IndexNow
 
 `bin/indexnow` submits published pages to IndexNow, which shares submissions with
@@ -111,9 +153,8 @@ bin/indexnow --all                         # submit every sitemap URL
 
 The key is the single `<key>.txt` file in the repository root, published
 unchanged at the site root; the script reads it and takes the host from `CNAME`.
-This site's key differs from robotics.bamvt.com's. `--since` works only
-for pages whose sitemap entry has a `lastmod`; otherwise name the URLs or use
-`--all`.
+This site's key differs from robotics.bamvt.com's. `--since` uses the sitemap's
+`lastmod` dates, which the timestamp hook maintains (see **Page update dates**).
 Submit only changed pages; repeated submissions of unchanged URLs can
 be throttled. The same script is kept in `robotics.bamvt.com` and
 `www.bamvt.com`; keep the copies identical.

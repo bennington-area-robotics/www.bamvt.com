@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-10-10T13:45:25-04:00
 description: "Browse photos of hands-on projects and gatherings from BAM’s early makerspace years, with links to download the original images."
 layout: "default"
 title: "Makerspace Photos"

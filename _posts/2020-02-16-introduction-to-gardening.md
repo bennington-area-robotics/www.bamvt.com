@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T14:26:10-04:00
 description: "Read the February 2020 announcement for BAM’s vegetable gardening workshop, including planned topics and background on BAM and the Master Gardeners."
 layout: "article"
 title: "2/26/20 - Introduction to Gardening Workshop"

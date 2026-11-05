@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-10-10T13:45:25-04:00
 description: "Archived October 2020 FIRST Tech Challenge kit unboxing with Manchester Machine Makers at BAM, introducing robot parts and first-year team life."
 layout: "event"
 title: "First Robotics Tech Challenge Unboxing"

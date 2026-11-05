@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T14:26:10-04:00
 description: "Browse BAM’s 2020–2022 event archive, including gardening, coding, robotics, sewing, and virtual open shops. Details are preserved as history."
 layout: "default"
 title: "Past Events"

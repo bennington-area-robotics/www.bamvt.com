@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T14:26:10-04:00
 description: "Read BAM’s original makerspace conduct agreement for safe, collaborative work, with a link to the current robotics code of conduct."
 layout: "default"
 title: "Code of Conduct"

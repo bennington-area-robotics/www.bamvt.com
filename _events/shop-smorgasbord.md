@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-10-10T13:45:25-04:00
 description: "Archived June 2020 virtual project-sharing session covering coding, electronics, woodworking, welding, jewelry, art, and music."
 layout: "event"
 title: "Shop Smorgasbord"

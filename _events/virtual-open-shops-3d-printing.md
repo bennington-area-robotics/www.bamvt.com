@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T21:36:16-04:00
 description: "Archived April 2020 virtual open shop featuring 3D printing projects from Hale Mountain Research, with questions and project sharing."
 layout: "event"
 title: "Virtual Open Shops - 3D Printing"

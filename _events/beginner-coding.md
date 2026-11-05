@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-10-10T13:45:25-04:00
 description: "Archived beginner coding workshop for ages 7 and up, featuring Scratch and Makey Makey. The March 2020 event was postponed due to COVID-19."
 layout: "event"
 title: "Beginner Coding"

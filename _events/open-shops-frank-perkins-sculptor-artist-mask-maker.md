@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-09-27T14:26:10-04:00
 description: "Archived September 2020 open shop with artist Frank Perkins, exploring sculpture, mask making, molds, and painting techniques."
 layout: "event"
 title: "Open Shops - Frank Perkins - Sculptor, Artist, Mask Maker"

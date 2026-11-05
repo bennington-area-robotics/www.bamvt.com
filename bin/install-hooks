@@ -1,0 +1,58 @@
+#!/usr/bin/env ruby
+require 'fileutils'
+require 'open3'
+root, status = Open3.capture2('git', 'rev-parse', '--show-toplevel')
+abort 'Run this from the site repository.' unless status.success?
+Dir.chdir(root.strip)
+
+def git_path(name)
+  path, status = Open3.capture2('git', 'rev-parse', '--git-path', name)
+  abort 'Could not locate Git hooks.' unless status.success?
+  path.strip
+end
+
+# Earlier hook versions this installer may replace.
+LEGACY_HOOKS = ["#!/bin/sh\nset -eu\nexec ruby bin/last-modified --staged\n"].freeze
+
+hook_path = git_path('hooks/pre-commit')
+helper_path = git_path('hooks/last-modified')
+
+# A hooks directory inside the worktree (for example core.hooksPath=.githooks)
+# holds files a checked-out branch can replace, defeating the trusted copy.
+def resolved(path)
+  path = File.expand_path(path)
+  parent = path
+  parent = File.dirname(parent) until File.exist?(parent)
+  File.expand_path(path.delete_prefix(parent).delete_prefix('/'), File.realpath(parent))
+end
+
+def within?(path, dir)
+  path == dir || path.start_with?(dir + File::SEPARATOR)
+end
+
+common_dir, status = Open3.capture2('git', 'rev-parse', '--git-common-dir')
+abort 'Could not locate the Git directory.' unless status.success?
+hooks_dir = resolved(File.dirname(hook_path))
+if within?(hooks_dir, File.realpath(Dir.pwd)) && !within?(hooks_dir, resolved(common_dir.strip))
+  abort "Git hooks resolve to #{hooks_dir}, inside the worktree, where a checked-out " \
+        'branch can replace them. Unset core.hooksPath or point it outside the ' \
+        'checkout, then rerun bin/install-hooks.'
+end
+content = File.read('.githooks/pre-commit')
+if File.exist?(hook_path)
+  existing = File.read(hook_path)
+  unless existing == content || LEGACY_HOOKS.include?(existing)
+    abort "Existing pre-commit hook at #{hook_path}; copy bin/last-modified to " \
+          "#{helper_path} and add `ruby #{helper_path} --staged` to it instead."
+  end
+end
+
+# The hook runs this copy, not the checkout's, so later checkouts of other
+# branches cannot change the code that runs on commit.
+FileUtils.mkdir_p(File.dirname(hook_path))
+FileUtils.cp('bin/last-modified', helper_path)
+File.chmod(0o755, helper_path)
+File.write(hook_path, content)
+File.chmod(0o755, hook_path)
+puts "Installed timestamp hook: #{hook_path}"
+puts "Installed timestamp helper: #{helper_path}"

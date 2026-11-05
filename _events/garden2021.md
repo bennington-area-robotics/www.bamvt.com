@@ -1,4 +1,5 @@
 ---
+last_modified_at: 2026-10-10T13:45:25-04:00
 description: "Archived June 2021 gardening and pollinator event with garden planning, children’s bee crafts, beekeeping, and free pollinator plants."
 layout: "event"
 title: "Grow Your Own Garden: Gardening, Pollinators, and You!"
