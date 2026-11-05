@@ -1,3 +1,14 @@
 #!/bin/sh
+# www.bamvt.com timestamp hook, installed by bin/install-hooks.
+# Runs the helper copy stored beside this hook, not the checkout's bin/ copy,
+# so checking out an untrusted branch cannot change what runs on commit.
 set -eu
-exec ruby bin/last-modified --staged
+helper=$(git rev-parse --git-path hooks/last-modified)
+if [ ! -f "$helper" ]; then
+  echo "pre-commit: $helper is missing; review bin/last-modified and run bin/install-hooks." >&2
+  exit 1
+fi
+if [ -f bin/last-modified ] && ! cmp -s bin/last-modified "$helper"; then
+  echo "pre-commit: bin/last-modified differs from the installed copy; review it and run bin/install-hooks to update." >&2
+fi
+exec ruby "$helper" --staged

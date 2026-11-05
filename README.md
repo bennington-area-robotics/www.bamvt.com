@@ -103,8 +103,11 @@ the content, and the sitemap uses it for `lastmod`. Archived articles and events
 keep their original dates; `last_modified_at` records when this site's copy last
 changed.
 
-Run `bin/install-hooks` once per checkout. The pre-commit hook runs
-`bin/last-modified --staged`, which stamps affected pages in the index and updates
+Run `bin/install-hooks` once per checkout. It copies `bin/last-modified` into the
+Git hooks directory, and the pre-commit hook runs that copy with `--staged`, so
+checking out someone else's branch cannot change the code that runs when you
+commit. The hook warns when the checkout's `bin/last-modified` differs from the
+installed copy; review the change, then rerun `bin/install-hooks`. The helper stamps affected pages in the index and updates
 only the timestamp in their working copies, so partially staged edits stay partially
 staged. Stage changes first and run `git commit` without file/path arguments; the
 hook rejects path-limited commits. The installer preserves an existing hook and

@@ -65,6 +65,27 @@ class LastModifiedTest < Minitest::Test
     LastModified.check('HEAD^', 'HEAD')
   end
 
+  def test_installed_hook_runs_trusted_helper_not_checkout_copy
+    source = File.expand_path('../..', __dir__)
+    write('bin/last-modified', File.read(SCRIPT))
+    write('bin/install-hooks', File.read(File.join(source, 'bin/install-hooks')))
+    write('.githooks/pre-commit', File.read(File.join(source, '.githooks/pre-commit')))
+    git('add', '.')
+    git('commit', '-qm', 'Add timestamp tooling')
+    output, error, status = Open3.capture3('ruby', 'bin/install-hooks')
+    assert status.success?, "#{output}\n#{error}"
+
+    marker = File.join(@repo, 'payload-ran')
+    write('bin/last-modified', "File.write(#{marker.inspect}, 'x')\n")
+    write('index.md', page('Home', 'New body'))
+    git('add', 'index.md')
+    output, error, status = Open3.capture3('git', 'commit', '-qm', 'Edit home')
+    assert status.success?, "#{output}\n#{error}"
+    refute File.exist?(marker), 'hook ran the checkout copy of bin/last-modified'
+    assert_includes error, 'differs from the installed copy'
+    assert LastModified.timestamp(git('show', 'HEAD:index.md')) > Time.iso8601(OLD)
+  end
+
   def test_shared_data_updates_consumer_but_does_not_stage_its_edits
     write('_data/donations.json', '{"total": 2}')
     git('add', '_data/donations.json')
